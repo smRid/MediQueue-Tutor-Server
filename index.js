@@ -24,6 +24,22 @@ app.use(
 );
 app.use(express.json());
 
+function createMongoClient(connectionUri) {
+  const options = {
+    serverSelectionTimeoutMS: 5000,
+  };
+
+  if (connectionUri.startsWith("mongodb+srv://")) {
+    options.serverApi = {
+      version: ServerApiVersion.v1,
+      strict: true,
+      deprecationErrors: true,
+    };
+  }
+
+  return new MongoClient(connectionUri, options);
+}
+
 app.get("/", (req, res) => {
   res.send("MediQueue server is running");
 });
