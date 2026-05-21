@@ -40,6 +40,21 @@ function createMongoClient(connectionUri) {
   return new MongoClient(connectionUri, options);
 }
 
+let client = createMongoClient(uri);
+let databasePromise;
+
+async function getDatabase() {
+  if (!databasePromise) {
+    databasePromise = client.connect().then(async () => {
+      await client.db("admin").command({ ping: 1 });
+      console.log("Connected to MongoDB for MediQueue");
+      return client.db(dbName);
+    });
+  }
+
+  return databasePromise;
+}
+
 app.get("/", (req, res) => {
   res.send("MediQueue server is running");
 });
