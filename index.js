@@ -118,6 +118,24 @@ function verifyJwt(token) {
   return data;
 }
 
+function validateToken(req, res, next) {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith("Bearer ")
+    ? authHeader.slice("Bearer ".length)
+    : null;
+
+  const payload = verifyJwt(token);
+  if (!payload?.sub) {
+    return res.status(401).json({
+      success: false,
+      message: "Valid authorization token required",
+    });
+  }
+
+  req.user = payload;
+  next();
+}
+
 app.get("/", (req, res) => {
   res.send("MediQueue server is running");
 });
