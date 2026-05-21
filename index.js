@@ -262,6 +262,68 @@ app.delete("/my-tutors/:id", validateToken, async (req, res) => {
   res.json({ success: true, message: "Tutor deleted successfully" });
 });
 
+app.post("/bookings", validateToken, async (req, res) => {
+  const tutorsCollection = await getCollection("tutors");
+  const bookingsCollection = await getCollection("bookings");
+  const tutorId = toObjectId(req.body.tutorId);
+  if (!tutorId) return res.status(400).json({ message: "Invalid tutor id" });
+
+  const tutor = await tutorsCollection.findOne({ _id: tutorId });
+  if (!tutor) return res.status(404).json({ message: "Tutor not found" });
+
+  if (Number(tutor.totalSlot) <= 0) {
+    return res.status(409).json({
+      success: false,
+      message: "This session is fully booked. You can't join at the moment.",
+    });
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const sessionStart = new Date(tutor.sessionStartDate);
+  sessionStart.setHours(0, 0, 0, 0);
+  if (today < sessionStart) {
+    return res.status(409).json({
+      success: false,
+      message: "Booking is not available yet for this tutor",
+    });
+  }
+
+  const slotUpdate = await tutorsCollection.updateOne(
+    { _id: tutorId, totalSlot: { $gt: 0 } },
+    { $inc: { totalSlot: -1 } },
+  );
+  if (slotUpdate.modifiedCount === 0) {
+    return res.status(409).json({
+      success: false,
+      message: "No available slots left.",
+    });
+  }
+
+  const booking = {
+    studentId: req.user.sub,
+    studentName: req.body.studentName,
+    phone: req.body.phone,
+    studentEmail: req.user.email,
+    tutorId: req.body.tutorId,
+    tutorName: tutor.tutorName,
+    status: "booked",
+    token: `MQ-${Date.now().toString(36).toUpperCase()}-${crypto
+      .randomBytes(3)
+      .toString("hex")
+      .toUpperCase()}`,
+    createdAt: new Date(),
+  };
+
+  const result = await bookingsCollection.insertOne(booking);
+  res.status(201).json({
+    success: true,
+    message: "Booking completed successfully",
+    bookingId: result.insertedId,
+    token: booking.token,
+  });
+});
+
 app.get("/", (req, res) => {
   res.send("MediQueue server is running");
 });
@@ -274,6 +336,10 @@ app.use((error, req, res, next) => {
   });
 });
 
-app.listen(port, () => {
-  console.log(`MediQueue server listening on http://localhost:${port}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(port, () => {
+    console.log(`MediQueue server listening on http://localhost:${port}`);
+  });
+}
+
+module.exports = app;
