@@ -5,6 +5,7 @@
 /.pnp
 .pnp.js
 .yarn/install-state.gz
+server-apendix.md
 
 # testing
 /coverage
@@ -27,7 +28,6 @@ yarn-error.log*
 
 # local env files
 .env
-server-apendix.md
 
 # vercel
 .vercel

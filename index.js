@@ -45,14 +45,43 @@ let databasePromise;
 
 async function getDatabase() {
   if (!databasePromise) {
-    databasePromise = client.connect().then(async () => {
-      await client.db("admin").command({ ping: 1 });
-      console.log("Connected to MongoDB for MediQueue");
-      return client.db(dbName);
-    });
+    databasePromise = client
+      .connect()
+      .then(async () => {
+        await client.db("admin").command({ ping: 1 });
+        console.log("Connected to MongoDB for MediQueue");
+        return client.db(dbName);
+      })
+      .catch((error) => {
+        if (uri !== localUri && process.env.NODE_ENV !== "production") {
+          console.warn(
+            `Primary MongoDB connection failed (${error.code || error.message}). Falling back to local MongoDB.`,
+          );
+          client = createMongoClient(localUri);
+          return client
+            .connect()
+            .then(async () => {
+              await client.db("admin").command({ ping: 1 });
+              console.log("Connected to local MongoDB for MediQueue");
+              return client.db(dbName);
+            })
+            .catch((fallbackError) => {
+              databasePromise = null;
+              throw fallbackError;
+            });
+        }
+
+        databasePromise = null;
+        throw error;
+      });
   }
 
   return databasePromise;
+}
+
+async function getCollection(name) {
+  const database = await getDatabase();
+  return database.collection(name);
 }
 
 app.get("/", (req, res) => {
