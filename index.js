@@ -324,6 +324,33 @@ app.post("/bookings", validateToken, async (req, res) => {
   });
 });
 
+app.get("/my-bookings", validateToken, async (req, res) => {
+  const bookingsCollection = await getCollection("bookings");
+  const bookings = await bookingsCollection
+    .find({ studentId: req.user.sub })
+    .sort({ createdAt: -1 })
+    .toArray();
+  res.json(bookings);
+});
+
+app.patch("/my-bookings/:id", validateToken, async (req, res) => {
+  const bookingsCollection = await getCollection("bookings");
+  const _id = toObjectId(req.params.id);
+  if (!_id) return res.status(400).json({ message: "Invalid booking id" });
+
+  const booking = await bookingsCollection.findOne({ _id });
+  if (!booking) return res.status(404).json({ message: "Booking not found" });
+  if (booking.studentId !== req.user.sub) {
+    return res.status(403).json({ message: "You can only cancel your own booking" });
+  }
+
+  await bookingsCollection.updateOne(
+    { _id },
+    { $set: { status: "cancelled", cancelledAt: new Date() } },
+  );
+  res.json({ success: true, message: "Booking cancelled successfully" });
+});
+
 app.get("/", (req, res) => {
   res.send("MediQueue server is running");
 });
