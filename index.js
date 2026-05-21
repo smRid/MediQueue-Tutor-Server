@@ -136,6 +136,57 @@ function validateToken(req, res, next) {
   next();
 }
 
+function toObjectId(id) {
+  if (!ObjectId.isValid(id)) return null;
+  return new ObjectId(id);
+}
+
+function serializeTutor(body, user) {
+  return {
+    tutorName: body.tutorName,
+    photo: body.photo,
+    subject: body.subject,
+    availableDays: body.availableDays,
+    availableTime: body.availableTime,
+    hourlyFee: Number(body.hourlyFee) || 0,
+    totalSlot: Number(body.totalSlot) || 0,
+    sessionStartDate: body.sessionStartDate,
+    institution: body.institution,
+    experience: body.experience,
+    location: body.location,
+    teachingMode: body.teachingMode,
+    createdAt: body.createdAt ? new Date(body.createdAt) : new Date(),
+    userId: user.sub,
+    userEmail: user.email,
+    userName: user.name,
+  };
+}
+
+app.get("/tutors", async (req, res) => {
+  const tutorsCollection = await getCollection("tutors");
+  const { search, startDate, endDate } = req.query;
+  const filter = {};
+
+  if (search) {
+    filter.tutorName = { $regex: String(search), $options: "i" };
+  }
+  if (startDate || endDate) {
+    filter.createdAt = {};
+    if (startDate) filter.createdAt.$gte = new Date(startDate);
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      filter.createdAt.$lte = end;
+    }
+  }
+
+  const limit = Number.parseInt(req.query.limit, 10);
+  let query = tutorsCollection.find(filter).sort({ createdAt: -1 });
+  if (limit > 0) query = query.limit(limit);
+
+  res.json(await query.toArray());
+});
+
 app.get("/", (req, res) => {
   res.send("MediQueue server is running");
 });
