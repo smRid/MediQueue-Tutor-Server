@@ -84,6 +84,40 @@ async function getCollection(name) {
   return database.collection(name);
 }
 
+function base64url(input) {
+  return Buffer.from(input)
+    .toString("base64")
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+}
+
+function decodeBase64url(input) {
+  input = input.replace(/-/g, "+").replace(/_/g, "/");
+  while (input.length % 4) input += "=";
+  return Buffer.from(input, "base64").toString("utf8");
+}
+
+function verifyJwt(token) {
+  const [header, payload, signature] = String(token || "").split(".");
+  if (!header || !payload || !signature) return null;
+
+  const expected = base64url(
+    crypto
+      .createHmac("sha256", jwtSecret)
+      .update(`${header}.${payload}`)
+      .digest(),
+  );
+
+  if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+    return null;
+  }
+
+  const data = JSON.parse(decodeBase64url(payload));
+  if (data.exp && Date.now() / 1000 > data.exp) return null;
+  return data;
+}
+
 app.get("/", (req, res) => {
   res.send("MediQueue server is running");
 });
