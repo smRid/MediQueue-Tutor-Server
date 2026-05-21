@@ -162,6 +162,17 @@ function serializeTutor(body, user) {
   };
 }
 
+app.post("/tutors", validateToken, async (req, res) => {
+  const tutorsCollection = await getCollection("tutors");
+  const tutor = serializeTutor(req.body, req.user);
+  const result = await tutorsCollection.insertOne(tutor);
+  res.status(201).json({
+    success: true,
+    message: "Tutor added successfully",
+    tutorId: result.insertedId,
+  });
+});
+
 app.get("/tutors", async (req, res) => {
   const tutorsCollection = await getCollection("tutors");
   const { search, startDate, endDate } = req.query;
@@ -185,6 +196,70 @@ app.get("/tutors", async (req, res) => {
   if (limit > 0) query = query.limit(limit);
 
   res.json(await query.toArray());
+});
+
+app.get("/tutors/:id", validateToken, async (req, res) => {
+  const tutorsCollection = await getCollection("tutors");
+  const _id = toObjectId(req.params.id);
+  if (!_id) return res.status(400).json({ message: "Invalid tutor id" });
+
+  const tutor = await tutorsCollection.findOne({ _id });
+  if (!tutor) return res.status(404).json({ message: "Tutor not found" });
+  res.json(tutor);
+});
+
+app.get("/my-tutors", validateToken, async (req, res) => {
+  const tutorsCollection = await getCollection("tutors");
+  const myTutors = await tutorsCollection
+    .find({ userId: req.user.sub })
+    .sort({ createdAt: -1 })
+    .toArray();
+  res.json(myTutors);
+});
+
+app.patch("/my-tutors/:id", validateToken, async (req, res) => {
+  const tutorsCollection = await getCollection("tutors");
+  const _id = toObjectId(req.params.id);
+  if (!_id) return res.status(400).json({ message: "Invalid tutor id" });
+
+  const tutor = await tutorsCollection.findOne({ _id });
+  if (!tutor) return res.status(404).json({ message: "Tutor not found" });
+  if (req.user.sub !== tutor.userId) {
+    return res.status(403).json({
+      success: false,
+      message: "You are not authorized to update this tutor",
+    });
+  }
+
+  const updatedTutor = serializeTutor(req.body, req.user);
+  delete updatedTutor.createdAt;
+  const result = await tutorsCollection.updateOne(
+    { _id },
+    { $set: { ...updatedTutor, updatedAt: new Date() } },
+  );
+  res.json({
+    success: true,
+    modifiedCount: result.modifiedCount,
+    message: "Tutor updated successfully",
+  });
+});
+
+app.delete("/my-tutors/:id", validateToken, async (req, res) => {
+  const tutorsCollection = await getCollection("tutors");
+  const _id = toObjectId(req.params.id);
+  if (!_id) return res.status(400).json({ message: "Invalid tutor id" });
+
+  const tutor = await tutorsCollection.findOne({ _id });
+  if (!tutor) return res.status(404).json({ message: "Tutor not found" });
+  if (req.user.sub !== tutor.userId) {
+    return res.status(403).json({
+      success: false,
+      message: "You are not authorized to delete this tutor",
+    });
+  }
+
+  await tutorsCollection.deleteOne({ _id });
+  res.json({ success: true, message: "Tutor deleted successfully" });
 });
 
 app.get("/", (req, res) => {
