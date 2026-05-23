@@ -91,7 +91,3 @@ This API uses JSON Web Tokens (JWT) for securing protected routes. You must incl
 ```http
 Authorization: Bearer <your_jwt_token>
 ```
-
-## 📜 License
-
-This project is licensed under the ISC License.
